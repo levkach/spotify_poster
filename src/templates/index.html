@@ -272,12 +272,7 @@
     let followerChart = null;
 
     document.addEventListener('DOMContentLoaded', function () {
-        const isAuthenticated = {
-        {
-            authenticated | tojson
-        }
-    }
-        ;
+        const isAuthenticated = {{ authenticated|tojson }};
         if (isAuthenticated) {
             loginSection.classList.add('hidden');
             appSection.classList.remove('hidden');
