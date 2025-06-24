@@ -18,9 +18,13 @@ from flask_session import Session
 from google.oauth2.service_account import Credentials
 from spotipy.oauth2 import SpotifyOAuth
 
+# --- ENVIRONMENT and CONFIG ---
+script_dir = Path(__file__).resolve().parent
+load_dotenv(dotenv_path=script_dir / ".env")
+
 # --- APP SETUP ---
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.urandom(24)
+app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY")
 app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
 
@@ -30,10 +34,6 @@ limiter = Limiter(
     default_limits=["200 per day", "50 per hour"],
     storage_uri="memory://",
 )
-
-# --- ENVIRONMENT and CONFIG ---
-script_dir = Path(__file__).resolve().parent
-load_dotenv(dotenv_path=script_dir / ".env")
 
 # CORS configuration
 CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS")
