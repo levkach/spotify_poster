@@ -1,0 +1,11 @@
+spotipy
+requests
+python-dotenv
+google-generativeai
+pillow-heif
+gspread
+google-auth
+Flask
+Flask-Cors
+Flask-Session
+Flask-Limiter

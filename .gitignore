@@ -1,0 +1,10 @@
+venv
+src/service_acc.json
+src/.cache
+src/.env
+src/.env.production
+src/flask_session
+cache
+spotify-poster.iml
+deployment_guide.md
+.cache

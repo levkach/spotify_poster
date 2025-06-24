@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify Festival Playlist Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: #121212;
+            color: #FFFFFF;
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background-color: #1E1E1E;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+
+        h1 {
+            color: #1DB954;
+            font-weight: 700;
+        }
+
+        .btn {
+            background-color: #1DB954;
+            color: #FFFFFF;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 50px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 1rem;
+        }
+
+        .btn:hover {
+            background-color: #1ED760;
+        }
+
+        .file-input-wrapper {
+            margin: 1.5rem 0;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-label {
+            background-color: #282828;
+            color: #FFFFFF;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .file-label:hover {
+            background-color: #333333;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #535353;
+            background-color: #282828;
+            color: #FFFFFF;
+            box-sizing: border-box;
+        }
+
+        #artist-list {
+            margin-top: 1.5rem;
+            text-align: left;
+        }
+
+        #playlist-link {
+            margin-top: 1.5rem;
+            font-weight: bold;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid #1DB954;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 2rem auto;
+            display: none; /* Hidden by default */
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes music-wave {
+            0% {
+                height: 10px;
+                transform: translateY(0px);
+            }
+            50% {
+                height: 60px;
+                transform: translateY(-30px);
+            }
+            100% {
+                height: 10px;
+                transform: translateY(0px);
+            }
+        }
+
+        .music-notes {
+            display: inline-block;
+            position: relative;
+            width: 80px;
+            height: 80px;
+        }
+
+        .music-notes .note {
+            display: inline-block;
+            position: absolute;
+            bottom: 0;
+            width: 10px;
+            height: 10px;
+            background-color: #1DB954;
+            border-radius: 50%;
+            animation: music-wave 1.5s infinite ease-in-out;
+        }
+
+        .music-notes .note:nth-child(2) {
+            left: 20px;
+            animation-delay: 0.2s;
+        }
+
+        .music-notes .note:nth-child(3) {
+            left: 40px;
+            animation-delay: 0.4s;
+        }
+
+        .music-notes .note:nth-child(4) {
+            left: 60px;
+            animation-delay: 0.6s;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .chart-container {
+            margin-top: 2rem;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="container">
+    <h1>Spotify Festival Playlist Generator</h1>
+    <p>Upload a festival poster and get a Spotify playlist in seconds!</p>
+
+    <div id="login-section">
+        <button id="login-btn" class="btn">Connect with Spotify</button>
+    </div>
+
+    <div id="app-section" class="hidden">
+        <div class="file-input-wrapper">
+            <label for="poster-upload" class="file-label">Select Poster Image</label>
+            <input type="file" id="poster-upload" accept="image/*">
+        </div>
+
+        <div id="poster-preview"></div>
+
+        <div id="form-section" class="hidden">
+            <div class="form-group">
+                <label for="festival-name">Festival Name</label>
+                <input type="text" id="festival-name" placeholder="e.g., Coachella">
+            </div>
+            <div class="form-group">
+                <label for="festival-geo">Festival Location</label>
+                <input type="text" id="festival-geo" placeholder="e.g., Indio, CA">
+            </div>
+            <div class="form-group">
+                <label for="festival-year">Festival Year</label>
+                <input type="text" id="festival-year" placeholder="e.g., 2025">
+            </div>
+            <div id="artist-list">
+                <h3>Extracted Artists:</h3>
+                <ul id="artists"></ul>
+            </div>
+            <div id="playlist-action-area" style="min-height: 80px; text-align: center; margin-top: 1rem;">
+                <button id="create-playlist-btn" class="btn hidden">Create Playlist</button>
+                <div id="playlist-creation-animation" class="hidden">
+                    <div class="music-notes">
+                        <div class="note"></div>
+                        <div class="note"></div>
+                        <div class="note"></div>
+                        <div class="note"></div>
+                    </div>
+                    <p>Crafting your festival vibe...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="charts-section" class="hidden">
+        <div class="chart-container">
+            <h3>Genre Distribution</h3>
+            <canvas id="genre-chart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>Follower Distribution</h3>
+            <canvas id="follower-chart"></canvas>
+        </div>
+    </div>
+
+    <div id="spinner" class="spinner"></div>
+
+    <div id="playlist-link"></div>
+    <div id="error-message" style="color: red; margin-top: 1rem;"></div>
+</div>
+
+<script>
+    const loginBtn = document.getElementById('login-btn');
+    const appSection = document.getElementById('app-section');
+    const loginSection = document.getElementById('login-section');
+    const posterUpload = document.getElementById('poster-upload');
+    const formSection = document.getElementById('form-section');
+    const createPlaylistBtn = document.getElementById('create-playlist-btn');
+    const playlistActionArea = document.getElementById('playlist-action-area');
+    const playlistCreationAnimation = document.getElementById('playlist-creation-animation');
+    const chartsSection = document.getElementById('charts-section');
+    const festivalNameInput = document.getElementById('festival-name');
+    const festivalGeoInput = document.getElementById('festival-geo');
+    const festivalYearInput = document.getElementById('festival-year');
+    const artistList = document.getElementById('artists');
+    const playlistLink = document.getElementById('playlist-link');
+    const spinner = document.getElementById('spinner');
+    const errorMessage = document.getElementById('error-message');
+
+    let festivalInfo = {};
+    let artistData = [];
+    let genreChart = null;
+    let followerChart = null;
+
+    loginBtn.addEventListener('click', () => {
+        fetch('/login')
+            .then(response => response.json())
+            .then(data => {
+                const authUrl = data.auth_url;
+                const popup = window.open(authUrl, 'Spotify Login', 'width=600,height=700');
+
+                const checkPopup = setInterval(() => {
+                    if (!popup || popup.closed) {
+                        clearInterval(checkPopup);
+                        loginSection.classList.add('hidden');
+                        appSection.classList.remove('hidden');
+                    }
+                }, 1000);
+            });
+    });
+
+    posterUpload.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('poster', file);
+
+        spinner.style.display = 'block';
+        formSection.classList.add('hidden');
+        chartsSection.classList.add('hidden');
+        playlistLink.innerHTML = '';
+        errorMessage.innerHTML = '';
+
+        fetch('/process_poster', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to process poster.');
+                }
+                return response.json();
+            })
+            .then(data => {
+                spinner.style.display = 'none';
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                festivalInfo = {
+                    name: data.festival_name || '',
+                    geo: data.festival_location || '',
+                    year: data.festival_year || '',
+                    artists: data.artists || []
+                };
+
+                festivalNameInput.value = festivalInfo.name;
+                festivalGeoInput.value = festivalInfo.geo;
+                festivalYearInput.value = festivalInfo.year;
+
+                artistList.innerHTML = '';
+                festivalInfo.artists.forEach(artist => {
+                    const li = document.createElement('li');
+                    li.textContent = artist;
+                    artistList.appendChild(li);
+                });
+
+                formSection.classList.remove('hidden');
+                analyzeArtistsAndRenderCharts();
+            })
+            .catch(error => {
+                spinner.style.display = 'none';
+                errorMessage.textContent = `Error: ${error.message}`;
+            });
+    });
+
+    async function analyzeArtistsAndRenderCharts() {
+        if (festivalInfo.artists.length === 0) {
+            errorMessage.textContent = 'No artists to analyze.';
+            return;
+        }
+
+        spinner.style.display = 'block';
+        chartsSection.classList.add('hidden');
+        playlistLink.innerHTML = '';
+        errorMessage.innerHTML = '';
+        createPlaylistBtn.classList.add('hidden');
+
+        const existingLink = playlistActionArea.querySelector('a');
+        if (existingLink) {
+            existingLink.remove();
+        }
+
+        try {
+            const response = await fetch('/get_artist_data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    artists: festivalInfo.artists
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to get artist data.');
+            }
+
+            artistData = await response.json();
+            spinner.style.display = 'none';
+
+            if (artistData.length === 0) {
+                errorMessage.textContent = 'Could not retrieve data for any of the artists.';
+                return;
+            }
+
+            renderGenreChart(artistData);
+            renderFollowerChart(artistData);
+            chartsSection.classList.remove('hidden');
+            createPlaylistBtn.classList.remove('hidden');
+
+        } catch (error) {
+            spinner.style.display = 'none';
+            errorMessage.textContent = `Error: ${error.message}`;
+        }
+    }
+
+    createPlaylistBtn.addEventListener('click', async () => {
+        const track_ids = artistData.flatMap(artist => artist.tracks.map(track => track.id));
+
+        if (track_ids.length === 0) {
+            errorMessage.textContent = 'No tracks to create a playlist.';
+            return;
+        }
+
+        errorMessage.innerHTML = '';
+        createPlaylistBtn.classList.add('hidden');
+        playlistCreationAnimation.classList.remove('hidden');
+
+        try {
+            const ip_response = await fetch('https://api.ipify.org?format=json');
+            if (!ip_response.ok) {
+                throw new Error('Could not fetch IP address.');
+            }
+            const ip_data = await ip_response.json();
+            const user_ip = ip_data.ip;
+
+            const response = await fetch('/create_playlist', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    festival_name: festivalNameInput.value,
+                    festival_geo: festivalGeoInput.value,
+                    festival_year: festivalYearInput.value,
+                    track_ids: track_ids,
+                    user_ip: user_ip
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to create playlist.');
+            }
+
+            const data = await response.json();
+            playlistCreationAnimation.classList.add('hidden');
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            const a = document.createElement('a');
+            a.href = data.playlist_url;
+            a.textContent = 'Listen to your playlist!';
+            a.target = '_blank';
+            a.className = 'btn';
+            playlistActionArea.appendChild(a);
+        } catch (error) {
+            playlistCreationAnimation.classList.add('hidden');
+            errorMessage.textContent = `Error: ${error.message}`;
+            createPlaylistBtn.classList.remove('hidden');
+        }
+    });
+
+    function renderGenreChart(data) {
+        const genreCounts = {};
+        const genreArtists = {};
+
+        data.forEach(artist => {
+            if (artist.genres && artist.genres.length > 0) {
+                artist.genres.forEach(genre => {
+                    genreCounts[genre] = (genreCounts[genre] || 0) + 1;
+                    if (!genreArtists[genre]) {
+                        genreArtists[genre] = [];
+                    }
+                    genreArtists[genre].push(artist.artist_name);
+                });
+            } else {
+                const genre = 'Uncategorized';
+                genreCounts[genre] = (genreCounts[genre] || 0) + 1;
+                if (!genreArtists[genre]) {
+                    genreArtists[genre] = [];
+                }
+                genreArtists[genre].push(artist.artist_name);
+            }
+        });
+
+        const ctx = document.getElementById('genre-chart').getContext('2d');
+        if (genreChart) {
+            genreChart.destroy();
+        }
+        genreChart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: Object.keys(genreCounts),
+                datasets: [{
+                    data: Object.values(genreCounts),
+                    backgroundColor: [
+                        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40',
+                        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                const label = context.label || '';
+                                const artists = genreArtists[label] || [];
+                                return `${label}: ${artists.join(', ')}`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderFollowerChart(data) {
+        const followerGroups = {
+            '< 1K': [],
+            '1K - 5K': [],
+            '5K - 10K': [],
+            '10K - 30K': [],
+            '30K - 70K': [],
+            '70K - 100K': [],
+            '100K - 500K': [],
+            '500K - 1M': [],
+            '> 1M': [],
+        };
+
+        const artistDetailsByGroup = {...followerGroups};
+
+        data.forEach(artist => {
+            const followers = artist.followers || 0;
+            let groupKey = '';
+            if (followers < 1000) groupKey = '< 1K';
+            else if (followers < 5000) groupKey = '1K - 5K';
+            else if (followers < 10000) groupKey = '5K - 10K';
+            else if (followers < 30000) groupKey = '10K - 30K';
+            else if (followers < 70000) groupKey = '30K - 70K';
+            else if (followers < 100000) groupKey = '70K - 100K';
+            else if (followers < 500000) groupKey = '100K - 500K';
+            else if (followers < 1000000) groupKey = '500K - 1M';
+            else groupKey = '> 1M';
+
+            if (groupKey) {
+                if (!artistDetailsByGroup[groupKey]) {
+                    artistDetailsByGroup[groupKey] = [];
+                }
+                artistDetailsByGroup[groupKey].push(`${artist.artist_name}: ${formatFollowers(followers)}`);
+            }
+        });
+
+        const filteredLabels = Object.keys(artistDetailsByGroup).filter(label => artistDetailsByGroup[label].length > 0);
+        const chartData = filteredLabels.map(label => artistDetailsByGroup[label].length);
+
+        const ctx = document.getElementById('follower-chart').getContext('2d');
+        if (followerChart) {
+            followerChart.destroy();
+        }
+
+        followerChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: filteredLabels,
+                datasets: [{
+                    label: '# of Artists',
+                    data: chartData,
+                    backgroundColor: '#1DB954'
+                }]
+            },
+            options: {
+                interaction: {
+                    mode: 'nearest',
+                    intersect: false,
+                    axis: 'x'
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1,
+                            precision: 0
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        enabled: true,
+                        mode: 'nearest',
+                        position: 'average',
+                        intersect: false,
+                        callbacks: {
+                            title: function (context) {
+                                return context[0].label;
+                            },
+                            afterBody: function (context) {
+                                const label = context[0].label;
+                                const artistsInGroup = artistDetailsByGroup[label] || [];
+                                return artistsInGroup;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function formatFollowers(followerCount) {
+        if (followerCount < 1000) return followerCount;
+        const si = [
+            {value: 1e9, symbol: "G"},
+            {value: 1e6, symbol: "M"},
+            {value: 1e3, symbol: "K"},
+        ];
+        for (let i = 0; i < si.length; i++) {
+            const {value, symbol} = si[i];
+            if (followerCount >= value) {
+                return (followerCount / value).toFixed(1).replace(/\.0$/, "") + symbol;
+            }
+        }
+        return followerCount;
+    }
+</script>
+</body>
+</html>
