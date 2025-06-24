@@ -189,7 +189,7 @@
     <p>Upload a festival poster and get a Spotify playlist in seconds!</p>
 
     <div id="login-section">
-        <button id="login-btn" class="btn">Connect with Spotify</button>
+        <a href="/login" class="btn">Connect with Spotify</a>
     </div>
 
     <div id="app-section" class="hidden">
@@ -250,7 +250,6 @@
 </div>
 
 <script>
-    const loginBtn = document.getElementById('login-btn');
     const appSection = document.getElementById('app-section');
     const loginSection = document.getElementById('login-section');
     const posterUpload = document.getElementById('poster-upload');
@@ -272,21 +271,20 @@
     let genreChart = null;
     let followerChart = null;
 
-    loginBtn.addEventListener('click', () => {
-        fetch('/login')
-            .then(response => response.json())
-            .then(data => {
-                const authUrl = data.auth_url;
-                const popup = window.open(authUrl, 'Spotify Login', 'width=600,height=700');
-
-                const checkPopup = setInterval(() => {
-                    if (!popup || popup.closed) {
-                        clearInterval(checkPopup);
-                        loginSection.classList.add('hidden');
-                        appSection.classList.remove('hidden');
-                    }
-                }, 1000);
-            });
+    document.addEventListener('DOMContentLoaded', function () {
+        const isAuthenticated = {
+        {
+            authenticated | tojson
+        }
+    }
+        ;
+        if (isAuthenticated) {
+            loginSection.classList.add('hidden');
+            appSection.classList.remove('hidden');
+        } else {
+            loginSection.classList.remove('hidden');
+            appSection.classList.add('hidden');
+        }
     });
 
     posterUpload.addEventListener('change', (event) => {

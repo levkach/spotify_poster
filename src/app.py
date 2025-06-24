@@ -6,17 +6,17 @@ from pathlib import Path
 
 import google.generativeai as genai
 import gspread
+import pytz
 import requests
 import spotipy
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_session import Session
 from google.oauth2.service_account import Credentials
 from spotipy.oauth2 import SpotifyOAuth
-
-from flask_session import Session
 
 # --- APP SETUP ---
 app = Flask(__name__)
@@ -78,103 +78,6 @@ try:
     worksheet = spreadsheet.sheet1
 except Exception as e:
     print(f"Google Sheets authentication failed: {e}")
-
-
-# --- ROUTES ---
-@app.route("/")
-def index():
-    return render_template("index.html")
-
-
-@app.route("/login")
-def login():
-    sp_oauth = create_spotify_oauth()
-    auth_url = sp_oauth.get_authorize_url()
-    return jsonify({'auth_url': auth_url})
-
-
-@app.route("/spotify_auth")
-def callback():
-    sp_oauth = create_spotify_oauth()
-    session.clear()
-    code = request.args.get('code')
-    token_info = sp_oauth.get_access_token(code)
-    session["token_info"] = token_info
-    return "<script>window.close();</script>"
-
-
-@app.route("/process_poster", methods=["POST"])
-@limiter.limit("10 per minute")
-def process_poster():
-    if 'poster' not in request.files:
-        return jsonify({"error": "No poster file found"}), 400
-
-    file = request.files['poster']
-    filename = file.filename
-    image_bytes = file.read()
-
-    festival_info = get_festival_info_from_poster(image_bytes, filename)
-    if not festival_info:
-        return jsonify({"error": "Could not extract festival info"}), 500
-
-    return jsonify(festival_info)
-
-
-@app.route("/get_artist_data", methods=["POST"])
-@limiter.limit("30 per minute")
-def get_artist_data():
-    data = request.get_json()
-    artists = data.get("artists")
-
-    if not artists:
-        return jsonify({"error": "Missing required data"}), 400
-
-    token_info = get_token()
-    if not token_info:
-        return jsonify({"error": "User not authenticated"}), 401
-
-    sp = spotipy.Spotify(auth=token_info['access_token'])
-
-    artist_data_list = []
-    for artist_name in artists:
-        artist_data = get_artist_top_tracks(sp, artist_name)
-        if artist_data:
-            artist_data_list.append(artist_data)
-
-    return jsonify(artist_data_list)
-
-
-@app.route("/create_playlist", methods=["POST"])
-@limiter.limit("15 per minute")
-def create_playlist():
-    data = request.get_json()
-    festival_name = data.get("festival_name")
-    festival_geo = data.get("festival_geo")
-    festival_year = data.get("festival_year")
-    track_ids = data.get("track_ids")
-    user_ip = data.get("user_ip")
-
-    if not all([festival_name, festival_geo, track_ids, user_ip]):
-        return jsonify({"error": "Missing required data"}), 400
-
-    token_info = get_token()
-    if not token_info:
-        return jsonify({"error": "User not authenticated"}), 401
-
-    sp = spotipy.Spotify(auth=token_info['access_token'])
-    user_id = sp.current_user()["id"]
-
-    playlist_name = f"{festival_name} - {festival_geo}"
-    if festival_year:
-        playlist_name = f"{festival_name} {festival_year} - {festival_geo}"
-    playlist_url = create_spotify_playlist(sp, user_id, playlist_name, track_ids)
-
-    if playlist_url:
-        user_geo = get_user_geo(user_ip)
-        save_playlist_to_sheet(user_id, festival_name, festival_geo, festival_year, playlist_url, user_ip, user_geo)
-        return jsonify({"playlist_url": playlist_url})
-    else:
-        return jsonify({"error": "Could not create playlist"}), 500
 
 
 # --- HELPER FUNCTIONS ---
@@ -395,16 +298,24 @@ def create_spotify_playlist(sp, user_id, playlist_name, track_ids):
 def save_playlist_to_sheet(user_id, festival_name, festival_geo, festival_year, playlist_url, user_ip, user_geo):
     """Saves playlist information to the Google Sheet."""
     try:
+        # Get current time in UTC
+        utc_now = datetime.datetime.now(pytz.utc)
+        # Convert to CET
+        cet_timezone = pytz.timezone('CET')
+        cet_now = utc_now.astimezone(cet_timezone)
+        # Format the timestamp
+        timestamp = cet_now.isoformat()
+
         row = [
             user_id,
             festival_name,
             festival_year,
             festival_geo,
             playlist_url,
-            datetime.datetime.now().isoformat(),
+            timestamp,
             user_ip,
             user_geo,
-            datetime.datetime.now().strftime("%Y-%m-%d")
+            cet_now.strftime("%Y-%m-%d")
         ]
         worksheet.append_row(row)
         print(f"Saved playlist to Google Sheet: {row}")
@@ -425,6 +336,104 @@ def get_user_geo(ip_address):
     except Exception as e:
         print(f"Could not get user geo for IP {ip_address}: {e}")
         return "Unknown"
+
+
+# --- ROUTES ---
+@app.route("/")
+def index():
+    token_info = get_token()
+    return render_template("index.html", authenticated=bool(token_info))
+
+
+@app.route("/login")
+def login():
+    sp_oauth = create_spotify_oauth()
+    auth_url = sp_oauth.get_authorize_url()
+    return redirect(auth_url)
+
+
+@app.route("/spotify_auth")
+def callback():
+    sp_oauth = create_spotify_oauth()
+    session.clear()
+    code = request.args.get('code')
+    token_info = sp_oauth.get_access_token(code)
+    session["token_info"] = token_info
+    return redirect(url_for('index'))
+
+
+@app.route("/process_poster", methods=["POST"])
+@limiter.limit("10 per minute")
+def process_poster():
+    if 'poster' not in request.files:
+        return jsonify({"error": "No poster file found"}), 400
+
+    file = request.files['poster']
+    filename = file.filename
+    image_bytes = file.read()
+
+    festival_info = get_festival_info_from_poster(image_bytes, filename)
+    if not festival_info:
+        return jsonify({"error": "Could not extract festival info"}), 500
+
+    return jsonify(festival_info)
+
+
+@app.route("/get_artist_data", methods=["POST"])
+@limiter.limit("30 per minute")
+def get_artist_data():
+    data = request.get_json()
+    artists = data.get("artists")
+
+    if not artists:
+        return jsonify({"error": "Missing required data"}), 400
+
+    token_info = get_token()
+    if not token_info:
+        return jsonify({"error": "User not authenticated"}), 401
+
+    sp = spotipy.Spotify(auth=token_info['access_token'])
+
+    artist_data_list = []
+    for artist_name in artists:
+        artist_data = get_artist_top_tracks(sp, artist_name)
+        if artist_data:
+            artist_data_list.append(artist_data)
+
+    return jsonify(artist_data_list)
+
+
+@app.route("/create_playlist", methods=["POST"])
+@limiter.limit("15 per minute")
+def create_playlist():
+    data = request.get_json()
+    festival_name = data.get("festival_name")
+    festival_geo = data.get("festival_geo")
+    festival_year = data.get("festival_year")
+    track_ids = data.get("track_ids")
+    user_ip = data.get("user_ip")
+
+    if not all([festival_name, festival_geo, track_ids, user_ip]):
+        return jsonify({"error": "Missing required data"}), 400
+
+    token_info = get_token()
+    if not token_info:
+        return jsonify({"error": "User not authenticated"}), 401
+
+    sp = spotipy.Spotify(auth=token_info['access_token'])
+    user_id = sp.current_user()["id"]
+
+    playlist_name = f"{festival_name} - {festival_geo}"
+    if festival_year:
+        playlist_name = f"{festival_name} {festival_year} - {festival_geo}"
+    playlist_url = create_spotify_playlist(sp, user_id, playlist_name, track_ids)
+
+    if playlist_url:
+        user_geo = get_user_geo(user_ip)
+        save_playlist_to_sheet(user_id, festival_name, festival_geo, festival_year, playlist_url, user_ip, user_geo)
+        return jsonify({"playlist_url": playlist_url})
+    else:
+        return jsonify({"error": "Could not create playlist"}), 500
 
 
 if __name__ == "__main__":
