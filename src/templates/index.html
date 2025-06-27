@@ -288,75 +288,22 @@
         const file = event.target.files[0];
         if (!file) return;
 
-        const processImage = (imageBlob) => {
-            // Client-side image resizing
-            const MAX_WIDTH = 1920;
-            const MAX_HEIGHT = 1920;
-            const MIME_TYPE = "image/jpeg";
-            const QUALITY = 0.9;
+        const formData = new FormData();
+        formData.append('poster', file);
 
-            const blobURL = URL.createObjectURL(imageBlob);
-            const img = new Image();
-            img.src = blobURL;
-            img.onerror = function (e) {
-                URL.revokeObjectURL(this.src);
-                errorMessage.textContent = 'Cannot load image for resizing.';
-                console.error("Image loading error:", e);
-            };
-            img.onload = function () {
-                URL.revokeObjectURL(this.src);
-                let width = img.width;
-                let height = img.height;
+        spinner.style.display = 'block';
+        formSection.classList.add('hidden');
+        chartsSection.classList.add('hidden');
+        playlistLink.innerHTML = '';
+        errorMessage.innerHTML = '';
 
-                if (width > height) {
-                    if (width > MAX_WIDTH) {
-                        height *= MAX_WIDTH / width;
-                        width = MAX_WIDTH;
-                    }
-                } else {
-                    if (height > MAX_HEIGHT) {
-                        width *= MAX_HEIGHT / height;
-                        height = MAX_HEIGHT;
-                    }
-                }
-
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-
-                canvas.toBlob((blob) => {
-                    const formData = new FormData();
-                    let fileName = file.name;
-                    if (file.type === 'image/heic' || file.type === 'image/heif') {
-                        fileName = fileName.replace(/\.(heic|heif)$/i, '.jpeg');
-                    }
-                    formData.append('poster', blob, fileName.replace(/[^a-zA-Z0-9._-]/g, ''));
-                    uploadFile(formData);
-                }, MIME_TYPE, QUALITY);
-            };
-        }
-
-        const uploadFile = (formData) => {
-            spinner.style.display = 'block';
-            formSection.classList.add('hidden');
-            chartsSection.classList.add('hidden');
-            playlistLink.innerHTML = '';
-            errorMessage.innerHTML = '';
-            document.getElementById('playlist-embed-container').innerHTML = '';
-
-            fetch('/process_poster', {
-                method: 'POST',
-                body: formData
-            })
+        fetch('/process_poster', {
+            method: 'POST',
+            body: formData
+        })
             .then(response => {
                 if (!response.ok) {
-                    return response.json().then(err => {
-                        throw new Error(err.error || 'Failed to process poster.');
-                    }).catch(() => {
-                        throw new Error('Failed to process poster. Status: ' + response.status);
-                    });
+                    throw new Error('Failed to process poster.');
                 }
                 return response.json();
             })
@@ -391,33 +338,8 @@
                 spinner.style.display = 'none';
                 errorMessage.textContent = `Error: ${error.message}`;
             });
-        }
-
-        if (file.type === 'image/heic' || file.type === 'image/heif') {
-            spinner.style.display = 'block';
-            errorMessage.innerHTML = 'Converting HEIC image, please wait...';
-            heic2any({
-                blob: file,
-                toType: "image/jpeg",
-                quality: 0.9,
-            })
-            .then(conversionResult => {
-                spinner.style.display = 'none';
-                errorMessage.innerHTML = '';
-                processImage(conversionResult);
-            })
-            .catch(e => {
-                spinner.style.display = 'none';
-                errorMessage.textContent = 'HEIC conversion failed. Attempting to upload the original file, which may take longer.';
-                console.error(e);
-                const formData = new FormData();
-                formData.append('poster', file, file.name.replace(/[^a-zA-Z0-9._-]/g, ''));
-                uploadFile(formData);
-            });
-        } else {
-            processImage(file);
-        }
     });
+
 
     async function analyzeArtistsAndRenderCharts() {
         if (festivalInfo.artists.length === 0) {
