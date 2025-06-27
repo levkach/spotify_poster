@@ -26,6 +26,7 @@ load_dotenv(dotenv_path=script_dir / ".env")
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY")
 app.config["SESSION_TYPE"] = "filesystem"
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB limit
 Session(app)
 
 limiter = Limiter(
@@ -287,9 +288,14 @@ def create_spotify_playlist(sp, user_id, playlist_name, track_ids):
         return None
     try:
         playlist = sp.user_playlist_create(user=user_id, name=playlist_name, public=True)
-        sp.playlist_add_items(playlist_id=playlist['id'], items=track_ids)
+        playlist_id = playlist['id']
+        for i in range(0, len(track_ids), 100):
+            sp.playlist_add_items(playlist_id=playlist_id, items=track_ids[i:i + 100])
         print(f"Playlist '{playlist_name}' created successfully!")
-        return playlist['external_urls']['spotify']
+        return {
+            "url": playlist['external_urls']['spotify'],
+            "id": playlist['id']
+        }
     except Exception as e:
         log_and_show_error(f"Error creating Spotify playlist: {e}")
         return None
@@ -426,12 +432,13 @@ def create_playlist():
     playlist_name = f"{festival_name} - {festival_geo}"
     if festival_year:
         playlist_name = f"{festival_name} {festival_year} - {festival_geo}"
-    playlist_url = create_spotify_playlist(sp, user_id, playlist_name, track_ids)
+    playlist_data = create_spotify_playlist(sp, user_id, playlist_name, track_ids)
 
-    if playlist_url:
+    if playlist_data:
         user_geo = get_user_geo(user_ip)
-        save_playlist_to_sheet(user_id, festival_name, festival_geo, festival_year, playlist_url, user_ip, user_geo)
-        return jsonify({"playlist_url": playlist_url})
+        save_playlist_to_sheet(user_id, festival_name, festival_geo, festival_year, playlist_data["url"], user_ip,
+                               user_geo)
+        return jsonify({"playlist_url": playlist_data["url"], "playlist_id": playlist_data["id"]})
     else:
         return jsonify({"error": "Could not create playlist"}), 500
 
